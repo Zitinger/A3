@@ -4,55 +4,20 @@
 #include <string>
 #include <unordered_set>
 #include <cstdint>
-#include <algorithm>
 
 #include "RandomStreamGen.h"
 #include "HashFuncGen.h"
 #include "HyperLogLog.h"
 
-static double medianOfEstimates(const std::vector<double> &v) {
-  if (v.empty()) {
-    return 0.0;
-  }
-
-  std::vector<double> a = v;
-  std::sort(a.begin(), a.end());
-
-  int n = a.size();
-  int mid = n / 2;
-
-  if ((n % 2) == 1) {
-    return a[mid];
-  }
-
-  return (a[mid - 1] + a[mid]) / 2.0;
-}
-
 static void runOneStream(
   int streamId,
   const std::vector<std::string> &stream,
   const std::vector<int64_t> &checkpoints,
+  const HashFuncGen &hashFunc,
   int p,
-  int sketchesCount,
-  std::uint32_t hashBaseSeed,
   std::ofstream &out
 ) {
-  if (sketchesCount < 1) {
-    sketchesCount = 1;
-  }
-
-  std::vector<HashFuncGen> hashers;
-  std::vector<HyperLogLog> hlls;
-
-  hashers.reserve(sketchesCount);
-  hlls.reserve(sketchesCount);
-
-  for (int j = 0; j < sketchesCount; j += 1) {
-    std::uint32_t seed = hashBaseSeed + (j * 10007u);
-    hashers.emplace_back(seed);
-    hlls.emplace_back(p);
-  }
-
+  HyperLogLog hll(p);
   std::unordered_set<std::string> exact;
   exact.reserve(stream.size() * 2);
 
@@ -63,24 +28,13 @@ static void runOneStream(
     const std::string &s = stream[i];
 
     exact.insert(s);
-
-    for (int j = 0; j < sketchesCount; j += 1) {
-      std::uint32_t h = hashers[j](s);
-      hlls[j].add(h);
-    }
+    std::uint32_t h = hashFunc(s);
+    hll.add(h);
 
     while (nextIdx < checkpoints.size() && (i + 1) == checkpoints[nextIdx]) {
       int64_t processed = checkpoints[nextIdx];
       int64_t trueF0 = exact.size();
-
-      std::vector<double> ests;
-      ests.reserve(sketchesCount);
-
-      for (int j = 0; j < sketchesCount; j += 1) {
-        ests.push_back(hlls[j].estimate());
-      }
-
-      double est = medianOfEstimates(ests);
+      double est = hll.estimate();
 
       double frac = 0.0;
       if (!stream.empty()) {
@@ -106,9 +60,6 @@ int main(int argc, char **argv) {
   int stepPercent = 5;
   int p = 10;
   std::uint64_t seed = 12345;
-  int sketchesCount = 1;
-  std::uint32_t hashBaseSeed = 777u;
-  std::string outPath = "results.csv";
 
   if (argc >= 2) {
     streamsCount = std::stoi(argv[1]);
@@ -125,28 +76,21 @@ int main(int argc, char **argv) {
   if (argc >= 6) {
     seed = std::stoull(argv[5]);
   }
-  if (argc >= 7) {
-    sketchesCount = std::stoi(argv[6]);
-  }
-  if (argc >= 8) {
-    outPath = argv[7];
-  }
-  if (argc >= 9) {
-    hashBaseSeed = std::stoul(argv[8]);
-  }
 
-  std::ofstream out(outPath);
+  HashFuncGen hashFunc(777);
+
+  std::ofstream out("results.csv");
   out << "stream_id,step,fraction,processed,true_f0,estimate\n";
 
   for (int i = 0; i < streamsCount; i += 1) {
     RandomStreamGen gen(streamSize, seed + i * 1000ULL);
     std::vector<int64_t> cps = gen.checkpointsByPercent(stepPercent);
 
-    runOneStream(i, gen.data(), cps, p, sketchesCount, hashBaseSeed, out);
+    runOneStream(i, gen.data(), cps, hashFunc, p, out);
   }
 
   out.close();
 
-  std::cout << "OK: " << outPath << " generated\n";
+  std::cout << "OK: results.csv generated\n";
   return 0;
 }

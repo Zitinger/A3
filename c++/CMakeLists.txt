@@ -9,5 +9,4 @@ add_executable(A3 main.cpp
         HashFuncGen.cpp
         HashFuncGen.h
         HyperLogLog.cpp
-        HyperLogLog.h
-        HashFuncGen.cpp)
+        HyperLogLog.h)
