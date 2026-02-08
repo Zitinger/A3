@@ -1,2 +1,4 @@
 /.idea
 /build
+/c++/.idea
+/c++/cmake-build-debug

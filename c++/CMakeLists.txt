@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 4.0)
 project(A3)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -9,4 +9,5 @@ add_executable(A3 main.cpp
         HashFuncGen.cpp
         HashFuncGen.h
         HyperLogLog.cpp
-        HyperLogLog.h)
+        HyperLogLog.h
+        HashFuncGen.cpp)
